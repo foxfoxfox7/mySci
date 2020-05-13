@@ -31,7 +31,4 @@ def circularAgg(numMol, dipoleStrength):
 		dipoles[i][0] = dipoles[i][0] * dipoleStrength
 		dipoles[i][1] = dipoles[i][1] * dipoleStrength
 
-	print('positions\n', circle2)
-	print('dipoles\n', dipoles)
-
 	return circle2, dipoles

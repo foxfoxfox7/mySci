@@ -9,7 +9,7 @@ from quantarhei import Aggregate
 from quantarhei import energy_units
 from quantarhei import CorrelationFunction
 from quantarhei import SpectralDensity
-from quantarhei import TimeAxis
+from quantarhei import time_axxis
 from quantarhei import DFunction
 from quantarhei import Molecule
 from quantarhei.spectroscopy.absbase import AbsSpectrumBase
@@ -22,7 +22,7 @@ from quantarhei.models.spectdens import SpectralDensityDB
 import quantarhei as qr
 
 
-timea = TimeAxis(0.0, 200, 5.0)
+time_ax = time_axxis(0.0, 200, 5.0)
 temperature = 300.0
 
 #***********************************************************************
@@ -33,7 +33,7 @@ temperature = 300.0
 '''
 params = dict(ftype="OverdampedBrownian", T=temperature, reorg=50.0, cortime=100.0)
 with energy_units('1/cm'):
-  cf = CorrelationFunction(timea, params)
+  cf = CorrelationFunction(time_ax, params)
 
 forAggregate = []
 for i in range(30):
@@ -92,8 +92,8 @@ params = {"cortime":          100.0,
           "T":                temperature,
           "matsubara":        20}
 db = SpectralDensityDB(verbose=False)
-sd_renger = db.get_SpectralDensity(timea, "Renger_JCP_2002")
-sd_wendling = db.get_SpectralDensity(timea, "Wendling_JPCB_104_2000_5825")
+sd_renger = db.get_SpectralDensity(time_ax, "Renger_JCP_2002")
+sd_wendling = db.get_SpectralDensity(time_ax, "Wendling_JPCB_104_2000_5825")
 
 # Combining them to make our spectral density
 ax = sd_renger.axis
@@ -130,10 +130,12 @@ print("Calculating the propagator...\n")
 
 # Returning the propagator (tensor is included). stR=standard Redfield
 t1 = time.time()
-prop_Redfield = agg.get_ReducedDensityMatrixPropagator(timea,
-                                                       relaxation_theory="stR",
-                                                       time_dependent=False, 
-                                                       secular_relaxation=True)
+prop_Redfield = agg.get_ReducedDensityMatrixPropagator(
+	time_ax,
+	relaxation_theory="stR",
+	time_dependent=False, 
+	secular_relaxation=True
+	)
 t2 = time.time()
 print("Redfield propagator done in ", t2-t1, " s\n")
 
@@ -166,7 +168,7 @@ if _show_plots_:
 #***********************************************************************
 
 print("Calculating the absorption spectrum...\n")
-calc = qr.AbsSpectrumCalculator(timea, system=agg, 
+calc = qr.AbsSpectrumCalculator(time_ax, system=agg, 
                               relaxation_tensor=prop_Redfield.RelaxationTensor)
 calc.bootstrap(rwa=rwa)
 abs_calc = calc.calculate()
