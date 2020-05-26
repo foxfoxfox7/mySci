@@ -5,24 +5,13 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 
-from quantarhei import Aggregate
-from quantarhei import energy_units
-from quantarhei import CorrelationFunction
-from quantarhei import SpectralDensity
-from quantarhei import time_axxis
-from quantarhei import DFunction
-from quantarhei import Molecule
-from quantarhei.spectroscopy.absbase import AbsSpectrumBase
-from quantarhei.builders.pdb import PDBFile
-from quantarhei.core.units import kB_int 
-from quantarhei.core.units import convert
-from quantarhei.models.bacteriochlorophylls import BacterioChlorophyll
+import quantarhei as qr
 from quantarhei.models.spectdens import SpectralDensityDB
 
 import quantarhei as qr
 
 
-time_ax = time_axxis(0.0, 200, 5.0)
+time_ax = qr.TimeAxis(0.0, 200, 5.0)
 temperature = 300.0
 
 #***********************************************************************
@@ -88,9 +77,11 @@ for name in pigment_name:
             m.set_name(naming_map[name])
             forAggregate.append(m)
 
-params = {"cortime":          100.0,
-          "T":                temperature,
-          "matsubara":        20}
+params = {
+    "cortime": 100.0,
+    "T": temperature,
+    "matsubara": 20
+    }
 db = SpectralDensityDB(verbose=False)
 sd_renger = db.get_SpectralDensity(time_ax, "Renger_JCP_2002")
 sd_wendling = db.get_SpectralDensity(time_ax, "Wendling_JPCB_104_2000_5825")
@@ -168,8 +159,11 @@ if _show_plots_:
 #***********************************************************************
 
 print("Calculating the absorption spectrum...\n")
-calc = qr.AbsSpectrumCalculator(time_ax, system=agg, 
-                              relaxation_tensor=prop_Redfield.RelaxationTensor)
+calc = qr.AbsSpectrumCalculator(
+    time_ax, 
+    system=agg, 
+    relaxation_tensor=prop_Redfield.RelaxationTensor
+    )
 calc.bootstrap(rwa=rwa)
 abs_calc = calc.calculate()
 abs_calc.normalize2()

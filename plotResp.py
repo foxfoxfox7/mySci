@@ -4,28 +4,17 @@ import numpy as np
 import quantarhei as qr
 
 
-#
-# The responses
-#
-directory = 'exampleTrimerSep/paraResp'
 
-#time = np.loadtxt('./' + directory + '/timeData.txt')
-#respN = np.loadtxt('./' + directory + '/respN_t0.txt').view(complex)
-#respR = np.loadtxt('./' + directory + '/respR_t0.txt').view(complex)
+#Can have perpendcular responses
+directory = 'data/test/paraResp/'
 
-#time = np.load('./' + directory + '/timeData.npy')
-#respN = np.load('./' + directory + '/respN_t0.npy')
-#respR = np.load('./' + directory + '/respR_t0.npy')
-
-data = np.load('./' + directory + '/respT0Pad.npz')
-
-print(data.files)
-
-plt.plot(data['time'], data['nonr'], 'r--')
-plt.show()
-plt.plot(data['time'], data['reph'], 'b--')
+# T = 0, 100
+resp_data_para = np.load(directory + 'respT0Pad.npz')
+plt.plot(resp_data_para['time'], resp_data_para['rTot'], 'r--')
 plt.show()
 
+# Can turn the individual reposnes into 2d spectra
+'''
 #
 # The setup
 #
@@ -76,7 +65,7 @@ print('respN - ', data['nonr'][67][5])
 print('respR - ', data['reph'][67][5])
 
 # Editted
-'''
+
 respNtest = respN
 respRtest = respR
 

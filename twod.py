@@ -10,7 +10,6 @@ import os
 import math
 import time
 import random
-import tracemalloc
 import shutil
 import matplotlib.pyplot as plt
 import numpy as np
@@ -26,9 +25,9 @@ import myFuncs
 
 _test_ = False
 _save_ = True
-_show_ = False
+_show_ = True
 
-dir_name = 'test2'
+dir_name = 'test4'
 eigen_name = 'eigen'
 para_resp_name = 'paraResp'
 perp_resp_name = 'perpResp'
@@ -42,10 +41,11 @@ width = 300.0
 cor_time = 100.0
 temperature = 300
 
-#energies0 = [energy] * num_mol
-energies0 = [energy - (100 * num_mol / 2) + i * 100 for i in range(num_mol)]
+# Hwo to define the energies, all same, all different, all random
+energies0 = [energy] * num_mol
+#energies0 = [energy - (100 * num_mol / 2) + i * 100 for i in range(num_mol)]
 #energies0 = [random.gauss(energy, static_dis) for i in range(num_mol)]
-print(energies0)
+print('energies - ', energies0)
 
 t13_ax_ax_step = 1
 t13_ax_ax_len = 300
@@ -54,7 +54,7 @@ t2_ax_len = 100
 padding = 1000
 
 #######################################################################
-# Setup paramaters
+# Setup
 #######################################################################
 
 # The axis for time gaps 1 and 3
@@ -65,6 +65,7 @@ t13_ax = qr.TimeAxis(0.0, t13_ax_ax_count, t13_ax_ax_step)
 t2_ax_count = int(t2_ax_len/t2_ax_step)+1
 t2_ax = qr.TimeAxis(0.0, t2_ax_count, t2_ax_step)
 
+# Making the names of the directories and files to save stuff
 save_dir = 'data/' + dir_name + '/'
 eigen_file = save_dir + eigen_name + '.txt'
 para_resp_dir = save_dir + para_resp_name + '/'
@@ -81,45 +82,40 @@ if _save_:
 t1 = time.time()
 print("Calculating spectra from 0 to ", t2_ax_len, " fs\n")
 
-
 #######################################################################
-# Creation of the aggregate ring
-#
-# A function to create a list of quantarhei molecules
-# withcicular coordinates evenly spaceed and dipole
-# vectors running round the circumference all in the same direction
+# Creation of the aggregate positions and dipoles
 #######################################################################
 
+'''
+A function to create a list of quantarhei molecules
+with cicular coordinates evenly spaceed and dipole
+vectors running round the circumference all in the same direction
+'''
 for_agg = myFuncs.circularAgg(num_mol, dipole_strength)
 
-#######################################################################
-# Creation of the aggregate protein
-#
-# Takes the name of a pdb file (without the extension) and converts it
-# into a list of molecules with positions and dipoles. The only molecle
-# it looks for is Bacteriochlorophyll
-#######################################################################
-
+'''
+Takes the name of a pdb file (without the extension) and converts it
+into a list of molecules with positions and dipoles. The only molecle
+it looks for is Bacteriochlorophyll
+'''
 #for_agg = myFuncs.bacteriochl_agg('3eoj')
 
-#######################################################################
-# Creation of the aggregate dimer
+'''
+Just a simple dimer for testing. change the positions and dipoles
+'''
+#moleculeOne = qr.Molecule()
+#moleculeTwo = qr.Molecule()
+#moleculeOne.position = [0.0, 0.0, 0.0]
+#moleculeTwo.position = [0.0, 10.0, 0.0]
+#moleculeOne.set_dipole(0,1,[10.0, 0.0, 0.0])
+#moleculeTwo.set_dipole(0,1,[0.0, 10.0, 0.0])
+#for_agg = [moleculeOne, moleculeTwo]
 
-# Just a simple dimer for testing. change the positions and dipoles
-#######################################################################
-'''
-moleculeOne = qr.Molecule()
-moleculeTwo = qr.Molecule()
-moleculeOne.position = [0.0, 0.0, 0.0]
-moleculeTwo.position = [0.0, 10.0, 0.0]
-moleculeOne.set_dipole(0,1,[10.0, 0.0, 0.0])
-moleculeTwo.set_dipole(0,1,[0.0, 10.0, 0.0])
-for_agg = [moleculeOne, moleculeTwo]
-'''
 #######################################################################
 # Spectral density
 #######################################################################
 
+# Time axis for the spectral desnity
 # Needs to have small step for the dynamics to converge
 t_ax_sd = qr.TimeAxis(0.0, 10000, 1)
 db = SpectralDensityDB()
@@ -148,7 +144,7 @@ for mol in for_agg:
     mol.set_transition_environment((0,1),cf)
 
 if _test_:
-    reorg = convert(sd_low_freq.get_reorganization_energy(), "int", "1/cm")
+    reorg = qr.convert(sd_low_freq.get_reorganization_energy(), "int", "1/cm")
     print("input_reorg - ", reorg)
 
     with qr.energy_units("1/cm"):
@@ -170,10 +166,8 @@ def test_dynamics(agg_list, energies):
     agg.set_coupling_by_dipole_dipole(epsr=1.21)
     agg.build(mult=1)
     agg.diagonalize()
-    with qr.energy_units('1/cm'):
-        print(agg.get_Hamiltonian())
 
-    # Creating a propagation axis length t13_ax plus padding with intervals 1
+    # Propagation axis length t13_ax plus padding with intervals of 1
     t1_len = int(((t13_ax.length+padding-1)*t13_ax.step)+1)
     t2_prop_axis = qr.TimeAxis(0.0, t1_len, 1)
 
@@ -225,11 +219,14 @@ agg = qr.Aggregate(molecules=for_agg)
 agg.set_coupling_by_dipole_dipole(epsr=1.21)
 agg.build(mult=2)
 
+# Can save the hamiltoniam diag matrix, diaged hamiltonian and dipoles
 if _save_:
 	myFuncs.save_eigen_data(agg = agg, file = eigen_file)
 
 agg.diagonalize()
 rwa = agg.get_RWA_suggestion()
+with qr.energy_units('1/cm'):
+    print(agg.get_Hamiltonian())
 
 # Initialising the twod response calculator for the paralell laser
 resp_cal_para = qr.TwoDResponseCalculator(
@@ -238,7 +235,7 @@ resp_cal_para = qr.TwoDResponseCalculator(
 	t3axis=t13_ax,
 	system=agg
 	)
-# Copying the sresponse calculator for the perpendicular laser
+# Copying the response calculator for the perpendicular laser
 resp_cal_perp = resp_cal_para
 
 # Bootstrap is the place to add 0-padding to the response signal
@@ -246,23 +243,26 @@ resp_cal_perp = resp_cal_para
 # Response is calculated Converted into spectrum Stored in a container
 resp_cal_para.bootstrap(
 	rwa,
-	lab=lab_para,
 	verbose=True,
 	pad=padding,
-	printResp = para_resp_dir
+	printResp = para_resp_dir,
+	lab=lab_para
 	)
 resp_para_cont = resp_cal_para.calculate()
 spec_cont_para = resp_para_cont.get_TwoDSpectrumContainer()
 
 resp_cal_perp.bootstrap(
 	rwa,
-	lab=lab_perp,
 	verbose=True,
 	pad=padding,
-	printResp = perp_resp_dir
+	printResp = perp_resp_dir,
+	lab=lab_perp
 	)
 resp_perp_cont = resp_cal_perp.calculate()
 spec_cont_perp = resp_perp_cont.get_TwoDSpectrumContainer()
+
+t2 = time.time()
+print('calculation completed in ', (t2-t1), 's' )
 
 ########################################################################
 # Printing and Saving
@@ -306,8 +306,9 @@ for i, tt2 in enumerate(t2_ax.data):
 
 # Calculates anisotropy
 anis = (para - perp) / (para + (2 * perp))
-print(anis)
+print('anisotropy - ', anis)
 
+# Loads in the data about the states, energies, vectors, dipols, orders
 try:
 	pig_en, state_en, eig_vecs, state_dips, dip_order, en_order =\
 	 myFuncs.extracting_eigen_data(eigen_file)
@@ -324,14 +325,19 @@ try:
 except Exception:
 	print('no eigen data')
 
+# loads in the response data if saved
 try:
 	resp_data_para = np.load(para_resp_dir + 'respT0Pad.npz')
 	print('para response - ', resp_data_para.files)
 except Exception:
 	print('no para resp data at ' + para_resp_dir + 'respT0Pad.npz')
 
+# loads in the response data if saved
 try:
 	resp_data_perp = np.load(perp_resp_dir + 'respT0Pad.npz')
 	print('perp response - ', resp_data_perp.files)
 except Exception:
 	print('no perp resp data at ' + perp_resp_dir + 'respT0Pad.npz')
+
+plt.plot(resp_data_para['time'], resp_data_para['rTot'], 'r--')
+plt.show()
