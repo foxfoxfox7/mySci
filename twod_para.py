@@ -131,6 +131,9 @@ for mol in for_agg:
     mol.set_transition_environment((0,1),cf)
 
 if _test_:
+    reorg = convert(sd_low_freq.get_reorganization_energy(), "int", "1/cm")
+    print("input_reorg - ", reorg)
+
     with qr.energy_units("1/cm"):
         sd_tot.plot(show=True, axis=[0, 2000, 0.0, np.max(sd_tot.data)])
     cf.plot(show=True)
@@ -138,7 +141,6 @@ if _test_:
 #######################################################################
 # Dynamics
 #######################################################################
-
 
 def test_dynamics(agg_list, energies):
     # Adding the energies to the molecules. Neeed to be done before agg

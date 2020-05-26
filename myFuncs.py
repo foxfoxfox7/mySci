@@ -1,10 +1,34 @@
 import math
 import numpy as np
+import re
 
 import quantarhei as qr
 
 
-def circularAgg(numMol, dipoleStrength):
+def getLine(fileName, thisLine, plus = 0):
+
+	lineList = []
+	with open(fileName, 'r') as f:
+		for lineNum, line in enumerate(f):
+			line=line.strip()
+			if re.search('^' + thisLine, line):
+				lineList.append(lineNum + plus)
+
+	return lineList
+
+def getDataBetween(fileName, lineStart, lineFin):
+
+	dataInput=[]
+	with open(fileName, 'r') as f:
+		for line_num, line in enumerate(f):
+			line=line.strip()
+			if (line_num >= lineStart) and (line_num < lineFin):
+				data=line.split()
+				dataInput+=data
+
+	return dataInput
+
+def circularAgg(numMol, dipoleStrength):	
 	proteinDis = 8.7
 	difference = 0.6
 	r = 5
@@ -44,6 +68,11 @@ def circularAgg(numMol, dipoleStrength):
 	    molName.set_dipole(0,1,[dipoles[i][0], dipoles[i][1], 0.0])
 	    forAggregate.append(molName)
 
+	print('\nA list of molecules was generated. Positions are in a '
+		 'ring with ', proteinDis, ' Angstrom spacings. Dipoles are '
+		 'added running along the tangent of the ring. All in the '
+		 'same direction with ', dipoleStrength, ' dipoles (D)\n')
+
 	#return circle2, dipoles
 	return forAggregate
 
@@ -82,4 +111,86 @@ def bacteriochl_agg(name):
 	            m.set_name(naming_map[name])
 	            forAggregate.append(m)
 
+	print('\n A list of molecules has been extracted from a PDB file. '
+		 'molecules are of BCl type and have the appropriate position '
+		 'and dipole.\n')
+
 	return forAggregate
+
+def save_eigen_data(agg, file):
+	nM = agg.nmono
+	print('nM', nM)
+
+	H = agg.get_Hamiltonian()
+	SS = H.diagonalize()
+	trans1 = SS[1:nM+1,1:nM+1]
+	H.undiagonalize()
+	hamil = agg.HH[1:nM+1,1:nM+1]
+	
+	with open(file, 'a') as f:
+		f.write('Hamiltonian\n')
+		np.savetxt(f, hamil)
+
+		f.write('Transformation Matrix\n')
+		np.savetxt(f, trans1)
+
+	agg.diagonalize()
+	diag = agg.HH[1:nM+1,1:nM+1]
+
+	with open(file, 'a') as f:
+		f.write('Diagonalized\n')
+		np.savetxt(f, agg.HH[1:nM+1,1:nM+1])
+
+		f.write('Dipoles\n')
+		np.savetxt(f, agg.D2[0][1:nM+1].reshape(1, nM))
+
+def extracting_eigen_data(file):
+	startLine = getLine(file, 'Hamiltonian')
+	endLine = getLine(file, 'Transformation')
+	nM = endLine[0] - startLine[0] - 1
+	numIter = len(startLine)
+	print('\nnumber of iterations - ' + str(numIter))
+	print('number of molecules/sites - ' + str(nM) + '\n')
+
+	hamilStartLine = getLine(file, 'Hamiltonian', plus = 1)
+	hamilEndLine = getLine(file, 'Hamiltonian', plus = nM+1)
+	diagStartLine = getLine(file, 'Diagonalized', plus = 1)
+	diagEndLine = getLine(file, 'Diagonalized', plus = nM+1)
+	eigenStartLine = getLine(file, 'Transformation', plus = 1)
+	eigenEndLine = getLine(file, 'Transformation', plus = nM+1)
+	dipoleStartLine = getLine(file, 'Dipoles', plus = 1)
+	dipoleEndLine = getLine(file, 'Dipoles', plus = 2)
+
+	hamilList = []
+	hamil = []
+	pig_en = []
+
+	diagList = []
+	diag = []
+	state_en = []
+
+	eigenList = []
+	eig_vecs =[]
+
+	state_dipsStr = []
+	state_dips = []
+
+	for i in range(numIter):
+		hamilList.append(getDataBetween(file, hamilStartLine[i], hamilEndLine[i]))
+		hamil.append(np.array(hamilList[i]).reshape(int(len(hamilList[i])/nM),nM))
+		pig_en.append(np.diagonal(hamil[i]).astype(np.float))
+
+		diagList.append(getDataBetween(file, diagStartLine[i], diagEndLine[i]))
+		diag.append(np.array(diagList[i]).reshape(int(len(diagList[i])/nM),nM))
+		state_en.append(np.diagonal(diag[i]).astype(np.float))
+
+		eigenList.append(getDataBetween(file, eigenStartLine[i], eigenEndLine[i]))
+		eig_vecs.append(np.transpose(np.array(eigenList[i]).reshape(int(len(eigenList[i])/nM),nM)))
+
+		state_dipsStr.append(getDataBetween(file, dipoleStartLine[i], dipoleEndLine[i]))
+		state_dips.append((np.array(state_dipsStr[i]).astype(np.float)))
+
+	dip_order = np.flip(np.argsort(state_dips[0]))
+	en_order = np.argsort(pig_en[0])
+
+	return pig_en, state_en, eig_vecs, state_dips, dip_order, en_order

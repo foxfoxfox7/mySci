@@ -11,32 +11,14 @@ import numpy as np
 import multiprocessing as mp
 
 import quantarhei as qr
-from quantarhei import Aggregate
-from quantarhei import energy_units
-from quantarhei import eigenbasis_of 
-from quantarhei import CorrelationFunction
-from quantarhei import TimeAxis
-from quantarhei import Molecule
-from quantarhei import SpectralDensity
-from quantarhei import DFunction
-from quantarhei import Molecule
-
-from quantarhei.builders.pdb import PDBFile
-from quantarhei.core.units import kB_int 
-from quantarhei.core.units import convert
-from quantarhei.models.bacteriochlorophylls import BacterioChlorophyll
 from quantarhei.models.spectdens import SpectralDensityDB
-from quantarhei.spectroscopy.twodcalculator import TwoDResponseCalculator
-from quantarhei.spectroscopy.twodcontainer import TwoDResponseContainer
-#from quantarhei.spectroscopy.twod22 import TwoDSpectrumCalculator
-from quantarhei.spectroscopy.twod22 import TwoDSpectrum
 
 #import aceto
 #from aceto.lab_settings import lab_settings
 
 
 r = 5
-numMol = 3
+numMol = 8
 coreN = 1
 repeatN = 2
 dipoleStrength = 5
@@ -47,9 +29,9 @@ t2Step = 200
 t2Count = 2
 t13Step = 2
 t13Count = 300
-t2s = TimeAxis(0.0, t2Count, t2Step)
-t13 = TimeAxis(0.0, t13Count, t13Step)
-timeTotal = TimeAxis(0.0, 3*t13Count, t13Step)
+t2s = qr.TimeAxis(0.0, t2Count, t2Step)
+t13 = qr.TimeAxis(0.0, t13Count, t13Step)
+timeTotal = qr.TimeAxis(0.0, 3*t13Count, t13Step)
 
 two_pi = np.pi * 2
 proteinDis = 8.7
@@ -60,8 +42,8 @@ params = dict(ftype="OverdampedBrownian",
 				T=temperature, 
 				reorg=reorganisation, 
 				cortime=100.0)
-with energy_units('1/cm'):
-	cf = CorrelationFunction(timeTotal, params)
+with qr.energy_units('1/cm'):
+	cf = qr.CorrelationFunction(timeTotal, params)
 	#cf = CorrelationFunction(ta, params)
 
 #######################################################################
@@ -96,9 +78,8 @@ energies = [12500] * numMol
 #energies = [12000, 12100, 12200, 12300, 12400, 12150, 12250, 12350]
 forAggregate = []
 for i in range(numMol):
-	molName = 'molecule' + str(i)
-	molName = Molecule()
-	with energy_units("1/cm"):
+	molName = qr.Molecule()
+	with qr.energy_units("1/cm"):
 		molName.set_energy(1, energies[i])
 		#molName.set_energy(1, random.gauss(energies[i], staticDis))
 	molName.set_transition_environment((0,1),cf)
@@ -203,9 +184,9 @@ with eigenbasis_of(H2):
 def getEigen():
 
 	print('nM', nM)
-	agg = Aggregate(molecules=forAggregate)
+	agg = qr.Aggregate(molecules=forAggregate)
 	for j in range(nM):
-		with energy_units('1/cm'):
+		with qr.energy_units('1/cm'):
 			agg.monomers[j].set_energy(1, random.gauss(energies[j], staticDis))
 	agg.set_coupling_by_dipole_dipole(epsr=1.21)
 	agg.build() #mult=2
@@ -456,8 +437,8 @@ for i in range(nM):
 	#modEigenNorm.append(modEigen[i]/sum(modEigen[i]))
 
 
-complexEigen3 = np.zeros(shape=(numIter,nM))
-#complexEigen3 = [[0 for x in range(nM)] for y in range(numIter)] 
+#complexEigen3 = np.zeros(shape=(numIter,nM))
+complexEigen3 = [[0 for x in range(nM)] for y in range(numIter)] 
 for j in range(numIter):
 	for i in range(nM):
 		complexEigen3[j][i] = Tomas(eigenVecStr[j][i].astype(np.float))
@@ -467,7 +448,7 @@ print('space')
 print(complexEigen3[0])
 
 
-'''
+# range shoudl be less or equal to than number of nolecules
 for i in range(4):
 	#displayState(stateEnList[0], i, colours[i])
 	#displayState(modEigenNorm, dipoleOrder[i], colours[i])
@@ -518,43 +499,43 @@ for i in range (4):
 	IPR(complexEigen2[i])
 	print('realIPR')
 	IPR(complexEigen2[i].real)
-'''
-
-
-#for i in range(4):
-#	#displayState(stateEnList[0], i, colours[i])
-#	displayState(modEigenNorm, dipoleOrder[i], colours[i], plot = True)
-#plt.show()
 
 
 
-
-#plt.plot(modEigenNorm[dipoleOrder[0]].real)
-#plt.plot(modEigenNorm[dipoleOrder[0]].imag)
-#plt.plot(modEigenNorm[dipoleOrder[0]])
-#plt.show()
-
-
-
-#listTest = []
-#listFinal = []
-#for i in range(4):
-#	listTest.append(eigenVecStr[0][dipoleOrder[i]].astype(np.float))
-#	listFinal.append(Tomas(listTest[i]))
+for i in range(4):
+	#displayState(stateEnList[0], i, colours[i])
+	displayState(modEigenNorm, dipoleOrder[i], colours[i], plot = True)
+plt.show()
 
 
 
 
+plt.plot(modEigenNorm[dipoleOrder[0]].real)
+plt.plot(modEigenNorm[dipoleOrder[0]].imag)
+plt.plot(modEigenNorm[dipoleOrder[0]])
+plt.show()
 
-#cosThing = []
-#for i in range(nM):
-#	cosThing.append(np.cos(((2*math.pi)/length)*i))
-#vecCosImag = getImag(cosThing, show = True)
 
-#print('state -', dipoleOrder[0])
-#finalEigen = getImag(eigenVecStr[0][dipoleOrder[0]].astype(np.float))
-#print('state -', dipoleOrder[-1])
-#finalEigen = getImag(eigenVecStr[0][dipoleOrder[-1]].astype(np.float))
+
+listTest = []
+listFinal = []
+for i in range(4):
+	listTest.append(eigenVecStr[0][dipoleOrder[i]].astype(np.float))
+	listFinal.append(Tomas(listTest[i]))
+
+
+
+
+
+cosThing = []
+for i in range(nM):
+	cosThing.append(np.cos(((2*math.pi)/length)*i))
+vecCosImag = getImag(cosThing, show = True)
+
+print('state -', dipoleOrder[0])
+finalEigen = getImag(eigenVecStr[0][dipoleOrder[0]].astype(np.float))
+print('state -', dipoleOrder[-1])
+finalEigen = getImag(eigenVecStr[0][dipoleOrder[-1]].astype(np.float))
 
 
 
