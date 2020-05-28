@@ -232,7 +232,7 @@ def extracting_eigen_data_dict(file):
         'state dipoles': state_dips,
         'state energy order': en_order,
         'dipole order': dip_order
-    }
+    	}
 
     return eigen_data
 
