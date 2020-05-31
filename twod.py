@@ -33,7 +33,7 @@ para_resp_name = 'paraResp'
 perp_resp_name = 'perpResp'
 
 num_mol = 3
-dipole_strength = 3
+dipole_strength = 5
 static_dis = 300
 energy = 12500
 reorganisation = 102
@@ -58,12 +58,15 @@ padding = 1000
 #######################################################################
 
 # The axis for time gaps 1 and 3
-t13_ax_ax_count = int(t13_ax_ax_len/t13_ax_ax_step)+1
-t13_ax = qr.TimeAxis(0.0, t13_ax_ax_count, t13_ax_ax_step)
+#t13_ax_ax_count = int(t13_ax_ax_len/t13_ax_ax_step)+1
+#t13_ax = qr.TimeAxis(0.0, t13_ax_ax_count, t13_ax_ax_step)
 
 # The axis for time gap 2
-t2_ax_count = int(t2_ax_len/t2_ax_step)+1
-t2_ax = qr.TimeAxis(0.0, t2_ax_count, t2_ax_step)
+#t2_ax_count = int(t2_ax_len/t2_ax_step)+1
+#t2_ax = qr.TimeAxis(0.0, t2_ax_count, t2_ax_step)
+
+t13_ax = qr.TimeAxis(0, 300, 1)
+t2_ax = qr.TimeAxis(0, 2, 50)
 
 # Making the names of the directories and files to save stuff
 save_dir = 'data/' + dir_name + '/'

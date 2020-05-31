@@ -282,7 +282,7 @@ def sum_twod(m, laser):
 # Creation of the spectra
 #######################################################################
 
-# list of laser  polarities
+# list of laser polarities
 las_pol = ['para', 'perp']
 
 for l in range(n_loops):

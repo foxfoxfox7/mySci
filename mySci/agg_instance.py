@@ -9,7 +9,8 @@ import matplotlib.pyplot as plt
 import quantarhei as qr
 from quantarhei.models.spectdens import SpectralDensityDB
 from quantarhei.models.bacteriochlorophylls import BacterioChlorophyll
-
+import aceto
+from aceto.lab_settings import lab_settings
 
 
 class AggregateInstance():
@@ -45,10 +46,7 @@ class AggregateInstance():
         self.point_list = {}
         self.anisotropy = {}
 
-
-
-
-    def get_molecules_circular(self, nM, dip = 5, dist = 8.7, dif = 0.6):
+    def get_molecules_circular(self, nM, dip = 5, dist = 8.7, dif = 0.6, verbose = True):
 
         self.dipole_strength = dip
 
@@ -86,16 +84,17 @@ class AggregateInstance():
             molName.set_dipole(0,1,[dipoles[i][0], dipoles[i][1], 0.0])
             forAggregate.append(molName)
 
-        print('\nA list of molecules was generated. Positions are in a '
-             'ring with ', dist, ' Angstrom spacings. Dipoles are '
-             'added running along the tangent of the ring. All in the '
-             'same direction with ', self.dipole_strength, ' dipoles (D)\n')
+        if verbose:
+            print('\nA list of molecules was generated. Positions are in a '
+                'ring with ', dist, ' Angstrom spacings. Dipoles are '
+                'added running along the tangent of the ring. All in the '
+                'same direction with ', self.dipole_strength, ' dipoles (D)\n')
 
         #self.positions = circle2
         #self.dipoles = dipoles
         self.mol_list = forAggregate
 
-    def get_molecules_pdb(self, name):
+    def get_molecules_pdb(self, name, verbose = True):
 
         pdb_name = name
         file = qr.PDBFile(pdb_name + ".pdb")
@@ -131,9 +130,10 @@ class AggregateInstance():
                     m.set_name(naming_map[name])
                     forAggregate.append(m)
 
-        print('\n A list of molecules has been extracted from a PDB file. '
-             'molecules are of BCl type and have the appropriate position '
-             'and dipole.\n')
+        if verbose:
+            print('\n A list of molecules has been extracted from a PDB file. '
+                'molecules are of BCl type and have the appropriate position '
+                'and dipole.\n')
 
         self.mol_list = forAggregate
 
@@ -176,7 +176,7 @@ class AggregateInstance():
             energies = [self.energy] * nM
         elif method == 'different':
             energies = [self.energy - (100 * nM / 2) + i * 100\
-             for i in range(self.nM)]
+             for i in range(nM)]
         else:
             energies = [random.gauss(self.energy, self.static_dis)\
              for i in range(nM)]
@@ -286,14 +286,19 @@ class AggregateInstance():
             system=self.agg
             )
 
-    def twod_calculate(self, lab, pad = 0, name = 'place_holder', resp = False):
+        self.t1axis = ax13
+        self.t2axis = ax2
+
+    def twod_calculate(self, lab, pad = 0, name = 'place_holder'):#, resp = False
 
         calc = copy.deepcopy(self.resp_calc)
-        calc.bootstrap(self.rwa, lab = lab, pad = pad, printResp = resp)
+        calc.bootstrap(self.rwa, lab = lab, pad = pad)#, printResp = resp
         resp_cont = calc.calculate()
         self.resp_cont_dict.update({name: resp_cont})
         spec_cont = resp_cont.get_TwoDSpectrumContainer()
         self.spec_cont_dict.update({name: spec_cont})
+
+        self.pad = pad
         
         #if resp:
 
@@ -309,9 +314,9 @@ class AggregateInstance():
                 plt.title(name + str(int(tt2)))
                 plt.show()
 
-    def save_spectra(self, location = './', name = 'place_holder'):#, spread = 700
+    def save_spectra(self, location = '.', name = 'place_holder'):#, spread = 700
 
-        self._make_data_dir(location)
+        location = self._make_data_dir(location)
 
         for i, tt2 in enumerate(self.resp_calc.t2axis.data):
             twod = self.spec_cont_dict[name].get_spectrum(self.resp_calc.t2axis.data.data[i])
@@ -373,6 +378,9 @@ class AggregateInstance():
 
         if not os.path.exists(location):
             os.mkdir(location)
+        location = location + '/'
+
+        return location
 
     def _temp_assign_energies(self, method = None):
 
@@ -406,3 +414,128 @@ class AggregateInstance():
 
         return agg
 
+
+class AggregateAverage():
+
+    def __init__(self):
+
+        #self.eigen_vecs = {}
+        self.ipr = {}
+        self.spectra_data = {}
+
+        self.t2_axis = None
+
+    #def twod_setup(self, instance, pad = 0, name = 'place_holder'):
+    def twod_setup(self, ax2, ax13, pad = 0, name = 'place_holder'):
+
+        ax13 = ax13
+        self.t2_axis = ax2
+        #self.centre = qr.convert(instance.rwa, 'int', '1/cm')
+        self.centre = 12500
+
+        init = AggregateInstance()
+        init.get_molecules_circular(nM = 2, verbose = False)
+        init.assign_spec_dens()
+        init.assign_energies()
+        init.build_agg(mult = 2)
+
+        a_0 = np.array([1.0, 0.0, 0.0], dtype=np.float64)
+        lab = lab_settings(lab_settings.FOUR_WAVE_MIXING)
+        lab.set_laser_polarizations(a_0,a_0,a_0,a_0)
+
+        init.twod_setup(ax2 = self.t2_axis, ax13 = ax13)
+        init.twod_calculate(lab = lab, pad = pad)
+
+        self.spectra_data.update({name: []})
+        for i, time in enumerate(self.t2_axis.data):
+            spec = init.spec_cont_dict[name].get_spectrum(time)
+            self.spectra_data[name].append(spec)
+            self.spectra_data[name][i].add_data(-spec.data)
+
+    def add_data(self, container, name = 'place_holder'):
+
+        for i, time in enumerate(self.t2_axis.data):
+            spec = container[name].get_spectrum(time)
+            self.spectra_data[name][i].add_data(spec.data)
+
+    def normalise(self, num, name = 'place_holder'):
+
+        for i, time in enumerate(self.t2_axis.data):
+            self.spectra_data[name][i].devide_by(num)
+
+    def plot_spec(self, disp_range = 1000, name = 'place_holder'):
+
+        window = [self.centre - disp_range, self.centre + disp_range,\
+         self.centre - disp_range, self.centre + disp_range]
+
+        for i, time in enumerate(self.t2_axis.data):
+            with qr.energy_units('1/cm'):
+                self.spectra_data[name][i].plot(window = window)
+                plt.title(name + str(int(time)))
+                plt.show()
+
+    def save_spec(self, disp_range = 1000, location = '.', name = 'place_holder'):
+
+        window = [self.centre - disp_range, self.centre + disp_range,\
+         self.centre - disp_range, self.centre + disp_range]
+
+        location = self._make_data_dir(location)
+
+        for i, time in enumerate(self.t2_axis.data):
+            with qr.energy_units('1/cm'):
+                self.spectra_data[name][i].plot(window = window)#
+                plt.title(name + str(int(time)))
+                plt.savefig(location + name + str(int(time)) + '.png')
+
+
+    def _make_data_dir(self, location):
+
+        if not os.path.exists(location):
+            os.mkdir(location)
+        location = location + '/'
+
+        return location
+
+    '''
+    def twod_setup(self, system, name = 'place_holder'):
+
+        t13 = system.t1axis
+        t2 = system.t2axis
+        rwa = system.rwa
+        size = t13.length + system.pad
+
+        t13.atype = 'complete'
+        t13_freq = t13.get_FrequencyAxis()
+        t13_freq.data +=rwa
+        t13_freq.start +=rwa
+
+        with qr.energy_units('1/cm'):
+            self.t13_ax_data = t13_freq.data
+
+        self.t2_ax_data = t2.data
+
+        spectra = []
+        for time in self.t2_ax_data:
+            spectra.append(np.zeros((size, size)))
+
+        self.spectra_data.update({name: spectra})
+
+
+
+    def add_data(self, system, name = 'place_holder'):
+
+        container = system.spec_cont_dict[name]
+        for i, time in enumerate(self.t2_ax_data):
+            spec = container.get_spectrum(time)
+            self.spectra_data[name][i] += spec.data.real
+
+
+    #def normalize():
+
+    def plot_data(self, name = 'place_holder'):
+
+        for time in self.spectra_data[name]:
+            cm = plt.imshow(time)
+            plt.show()
+    
+    '''
