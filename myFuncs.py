@@ -236,6 +236,39 @@ def extracting_eigen_data_dict(file):
 
     return eigen_data
 
+def test_dynamics(agg_list, energies):
+    # Adding the energies to the molecules. Neeed to be done before agg
+    with qr.energy_units("1/cm"):
+        for i, mol in enumerate(agg_list):
+            mol.set_energy(1, energies[i])
+
+    # Creation of the aggregate for dynamics. multiplicity can be 1
+    agg = qr.Aggregate(molecules=agg_list)
+    agg.set_coupling_by_dipole_dipole(epsr=1.21)
+    agg.build(mult=1)
+    agg.diagonalize()
+    with qr.energy_units('1/cm'):
+        print(agg.get_Hamiltonian())
+
+    # Creating a propagation axis length t13_ax plus padding with intervals 1
+    t2_prop_axis = qr.TimeAxis(0.0, 1000, 1)
+
+    # Generates the propagator to describe motion in the aggregate
+    prop_Redfield = agg.get_ReducedDensityMatrixPropagator(
+        t2_prop_axis,
+        relaxation_theory="stR",
+        time_dependent=False,
+        secular_relaxation=True
+        )
+
+    # Obtaining the density matrix
+    shp = agg.get_Hamiltonian().dim
+    rho_i1 = qr.ReducedDensityMatrix(dim=shp, name="Initial DM")
+    # Setting initial conditions
+    rho_i1.data[shp-1,shp-1] = 1.0
+    # Propagating the system along the t13_ax_ax time axis
+    rho_t1 = prop_Redfield.propagate(rho_i1, name="Redfield evo from agg")
+    rho_t1.plot(coherences=False, axis=[0,t2_prop_axis.length,0,1.0], show=True)
 
 
 

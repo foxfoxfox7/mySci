@@ -11,6 +11,7 @@ import math
 import time
 import random
 import shutil
+import copy
 import matplotlib.pyplot as plt
 import numpy as np
 import multiprocessing as mp
@@ -23,8 +24,8 @@ from aceto.lab_settings import lab_settings
 import myFuncs
 
 
-_test_ = False
-_save_ = True
+_test_ = True
+_save_ = False
 _show_ = True
 
 dir_name = 'test4'
@@ -158,46 +159,13 @@ if _test_:
 # Dynamics
 #######################################################################
 
-def test_dynamics(agg_list, energies):
-    # Adding the energies to the molecules. Neeed to be done before agg
-    with qr.energy_units("1/cm"):
-        for i, mol in enumerate(agg_list):
-            mol.set_energy(1, energies[i])
-
-    # Creation of the aggregate for dynamics. multiplicity can be 1
-    agg = qr.Aggregate(molecules=agg_list)
-    agg.set_coupling_by_dipole_dipole(epsr=1.21)
-    agg.build(mult=1)
-    agg.diagonalize()
-
-    # Propagation axis length t13_ax plus padding with intervals of 1
-    t1_len = int(((t13_ax.length+padding-1)*t13_ax.step)+1)
-    t2_prop_axis = qr.TimeAxis(0.0, t1_len, 1)
-
-    # Generates the propagator to describe motion in the aggregate
-    prop_Redfield = agg.get_ReducedDensityMatrixPropagator(
-        t2_prop_axis,
-        relaxation_theory="stR",
-        time_dependent=False,
-        secular_relaxation=True
-        )
-
-    # Obtaining the density matrix
-    shp = agg.get_Hamiltonian().dim
-    rho_i1 = qr.ReducedDensityMatrix(dim=shp, name="Initial DM")
-    # Setting initial conditions
-    rho_i1.data[shp-1,shp-1] = 1.0
-    # Propagating the system along the t13_ax_ax time axis
-    rho_t1 = prop_Redfield.propagate(rho_i1, name="Redfield evo from agg")
-    rho_t1.plot(coherences=False, axis=[0,t1_len,0,1.0], show=True)
-
 # Test the setup by calculating the dynamics at same and diff energies
 if _test_:
     energies1 = [energy] * num_mol
     energies2 = [energy - (100 * num_mol / 2)\
      + i * 100 for i in range(num_mol)]
-    test_dynamics(agg_list=for_agg, energies=energies1)
-    test_dynamics(agg_list=for_agg, energies=energies2)
+    myFuncs.test_dynamics(agg_list=for_agg, energies=energies1)
+    myFuncs.test_dynamics(agg_list=for_agg, energies=energies2)
 
 ########################################################################
 # TwoD Spec
@@ -239,7 +207,7 @@ resp_cal_para = qr.TwoDResponseCalculator(
 	system=agg
 	)
 # Copying the response calculator for the perpendicular laser
-resp_cal_perp = resp_cal_para
+resp_cal_perp = copy.deepcopy(resp_cal_para)
 
 # Bootstrap is the place to add 0-padding to the response signal
 # printEigen=True prints eigenvalues, printResp='string' prints response
@@ -274,6 +242,8 @@ print('calculation completed in ', (t2-t1), 's' )
 # initialising empy numpy arrays for points on the spectra > anisotropy
 para = np.empty(len(t2_ax.data))
 perp = np.empty(len(t2_ax.data))
+en1 = 11000
+en2 = 13500
 
 # Runs through timessteps on the t2 axis. Gets spectrum from container
 for i, tt2 in enumerate(t2_ax.data):
@@ -281,8 +251,8 @@ for i, tt2 in enumerate(t2_ax.data):
 	para[i] = twodPara.get_max_value()
 	with qr.energy_units('1/cm'):
 		twodPara.plot()
-		plt.xlim(11400, 13100)
-		plt.ylim(11400, 13100)
+		plt.xlim(en1, en2)
+		plt.ylim(en1, en2)
 		plt.title('para' + str(int(tt2)))
 		if _save_:
 			plt.savefig(save_dir + 'para' + str(int(tt2)) + '.png')
@@ -295,8 +265,8 @@ for i, tt2 in enumerate(t2_ax.data):
 	perp[i] = twodPerp.get_max_value()
 	with qr.energy_units('1/cm'):
 		twodPerp.plot()
-		plt.xlim(11400, 13100)
-		plt.ylim(11400, 13100)
+		plt.xlim(en1, en2)
+		plt.ylim(en1, en2)
 		plt.title('perp' + str(int(tt2)))
 		if _save_:
 			plt.savefig(save_dir + 'perp' + str(int(tt2)) + '.png')

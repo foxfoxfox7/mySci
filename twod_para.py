@@ -4,6 +4,7 @@ import os
 import math
 import time
 import random
+import copy
 import tracemalloc
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,9 +23,9 @@ _show_ = True
 
 save_dir = './exampleTrimerSep/'
 
-num_mol = 3
-dipole_strength = 3
-static_dis = 300
+num_mol = 10
+dipole_strength = 5
+static_dis = 100
 energy = 12500
 reorganisation = 102
 width = 300.0
@@ -131,7 +132,7 @@ for mol in for_agg:
     mol.set_transition_environment((0,1),cf)
 
 if _test_:
-    reorg = convert(sd_low_freq.get_reorganization_energy(), "int", "1/cm")
+    reorg = qr.convert(sd_low_freq.get_reorganization_energy(), "int", "1/cm")
     print("input_reorg - ", reorg)
 
     with qr.energy_units("1/cm"):
@@ -142,48 +143,13 @@ if _test_:
 # Dynamics
 #######################################################################
 
-def test_dynamics(agg_list, energies):
-    # Adding the energies to the molecules. Neeed to be done before agg
-    with qr.energy_units("1/cm"):
-        for i, mol in enumerate(agg_list):
-            mol.set_energy(1, energies[i])
-
-    # Creation of the aggregate for dynamics. multiplicity can be 1
-    agg = qr.Aggregate(molecules=agg_list)
-    agg.set_coupling_by_dipole_dipole(epsr=1.21)
-    agg.build(mult=1)
-    agg.diagonalize()
-    with qr.energy_units('1/cm'):
-        print(agg.get_Hamiltonian())
-
-    # Creating a propagation axis length t13_ax plus padding with intervals 1
-    t1_len = int(((t13_ax.length+padding-1)*t13_ax.step)+1)
-    t2_prop_axis = qr.TimeAxis(0.0, t1_len, 1)
-
-    # Generates the propagator to describe motion in the aggregate
-    prop_Redfield = agg.get_ReducedDensityMatrixPropagator(
-        t2_prop_axis,
-        relaxation_theory="stR",
-        time_dependent=False,
-        secular_relaxation=True
-        )
-
-    # Obtaining the density matrix
-    shp = agg.get_Hamiltonian().dim
-    rho_i1 = qr.ReducedDensityMatrix(dim=shp, name="Initial DM")
-    # Setting initial conditions
-    rho_i1.data[shp-1,shp-1] = 1.0
-    # Propagating the system along the t13_ax_ax time axis
-    rho_t1 = prop_Redfield.propagate(rho_i1, name="Redfield evo from agg")
-    rho_t1.plot(coherences=False, axis=[0,t1_len,0,1.0], show=True)
-
 # Test the setup by calculating the dynamics at same and diff energies
 if _test_:
     energies1 = [energy] * num_mol
     energies2 = [energy - (100 * num_mol / 2)\
      + i * 100 for i in range(num_mol)]
-    test_dynamics(agg_list=for_agg, energies=energies1)
-    test_dynamics(agg_list=for_agg, energies=energies2)
+    myFuncs.test_dynamics(agg_list=for_agg, energies=energies1)
+    myFuncs.test_dynamics(agg_list=for_agg, energies=energies2)
 
 #######################################################################
 # Setup of the calculation
@@ -197,6 +163,7 @@ lab_para = lab_settings(lab_settings.FOUR_WAVE_MIXING)
 lab_para.set_laser_polarizations(a_0,a_0,a_0,a_0)
 lab_perp = lab_settings(lab_settings.FOUR_WAVE_MIXING)
 lab_perp.set_laser_polarizations(a_0,a_0,a_90,a_90)
+labs = [lab_para, lab_perp]
 
 
 def calcTwoD(n_loopsum):#
@@ -205,55 +172,43 @@ def calcTwoD(n_loopsum):#
 
     container = []
 
+    #energies0 = [energy - (100 * num_mol / 2) + i * 100 for i in range(num_mol)]
+    #energies0 = [energy] * num_mol
     # Giving random energies to the moleucles according to a gauss dist
     with qr.energy_units("1/cm"):
         for i, mol in enumerate(for_agg):
             mol.set_energy(1, random.gauss(energy, static_dis))
+            #mol.set_energy(1, energies0[i])
 
     agg = qr.Aggregate(molecules=for_agg)
     agg.set_coupling_by_dipole_dipole(epsr=1.21)
     agg.build(mult=2)
+    print(np.diagonal(agg.HH[1:num_mol+1,1:num_mol+1]))
     agg.diagonalize()
     rwa = agg.get_RWA_suggestion()
 
+    print(np.diagonal(agg.HH[1:num_mol+1,1:num_mol+1]))
+
     # Initialising the twod response calculator for the paralell laser
-    resp_cal_para = qr.TwoDResponseCalculator(
+    resp_calc_temp = qr.TwoDResponseCalculator(
         t1axis=t13_ax,
         t2axis=t2_ax,
         t3axis=t13_ax,
         system=agg
         )
-    # Copying the response calculator for the perpendicular laser
-    resp_cal_perp = resp_cal_para
 
     # Bootstrap is the place to add 0-padding to the response signal
     # printEigen=True prints eigenvalues, printResp='string' prints response
     # Response is calculated Converted into spectrum Stored in a container
-    resp_cal_para.bootstrap(
-        rwa,
-        pad=padding,
-        verbose=True,
-        lab=lab_para,
-        printEigen=False
-        )#, printResp='paraResp'
-    resp_para_cont = resp_cal_para.calculate()
-    spec_cont_para = resp_para_cont.get_TwoDSpectrumContainer()
-    container.append(spec_cont_para)
+    for lab in labs:
+        resp_calc = copy.deepcopy(resp_calc_temp)
+        resp_calc.bootstrap(rwa, pad=padding, lab=lab)
+        resp_cont = resp_calc.calculate()
+        spec_cont = resp_cont.get_TwoDSpectrumContainer()
+        container.append(spec_cont)
 
-    # REpeating the above process for the perpendicular laser setup
-    resp_cal_perp.bootstrap(
-        rwa,
-        pad=padding,
-        verbose=True,
-        lab=lab_perp,
-        printEigen=False
-        )#, printResp='perpResp'
-    resp_perp_cont = resp_cal_perp.calculate()
-    spec_cont_perp = resp_perp_cont.get_TwoDSpectrumContainer()
-    container.append(spec_cont_perp)
-
-    #return container
-    return spec_cont_para, spec_cont_perp
+    return container
+    #return spec_cont_para, spec_cont_perp
 
 def sum_twod(m, laser):
     for i, tt2 in enumerate(t2_ax.data):
@@ -349,21 +304,9 @@ for m, laser in enumerate(las_pol):
 if _save_:
     with open(save_dir + 'anis.log', 'w') as anis_file:
             anis_file.write('Time step = ' + str(t2_ax.step) + '\n')
-
-anis_max = []
-for j, tt2 in enumerate(t2_ax.data):
-    para_val = spectra[0][j].get_max_value()
-    perp_val = spectra[1][j].get_max_value()
-    anis_max.append((para_val - perp_val)/(para_val + (2 * perp_val)))
-
-print('anis_max = ' + str(anis_max) + '\n')
-
-if _save_:
-    with open(save_dir + 'anis.log', 'a') as anis_file:
-        anis_file.write('anis_max = ' + str(anis_max) + '\n')
-
+'''
 with qr.energy_units("1/cm"):
-    for i in range(en1, en2, 100):
+    for i in range(energy - 200, energy + 200, 50):
         anis = []
         for j, tt2 in enumerate(t2_ax.data):
             para_val = spectra[0][j].get_value_at(i, i).real
@@ -375,3 +318,14 @@ with qr.energy_units("1/cm"):
         if _save_:
             with open(save_dir + 'anis.log', 'a') as anis_file:
                 anis_file.write('anis' + str(i) + ' = ' + str(anis) + '\n')
+'''
+anis_max = []
+for j, tt2 in enumerate(t2_ax.data):
+    para_val = spectra[0][j].get_max_value()
+    perp_val = spectra[1][j].get_max_value()
+    anis_max.append((para_val - perp_val)/(para_val + (2 * perp_val)))
+
+print('anis_max = ' + str(anis_max) + '\n')
+if _save_:
+    with open(save_dir + 'anis.log', 'a') as anis_file:
+        anis_file.write('anis_max = ' + str(anis_max) + '\n')

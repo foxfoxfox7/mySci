@@ -291,6 +291,7 @@ class AggregateInstance():
 
     def twod_calculate(self, lab, pad = 0, name = 'place_holder'):#, resp = False
 
+        print('Calculating twod')
         calc = copy.deepcopy(self.resp_calc)
         calc.bootstrap(self.rwa, lab = lab, pad = pad)#, printResp = resp
         resp_cont = calc.calculate()
@@ -373,7 +374,6 @@ class AggregateInstance():
         print('dipole order - \n', self.dip_order)
         print('anisotropy - \n', self.anisotropy)
 
-
     def _make_data_dir(self, location):
 
         if not os.path.exists(location):
@@ -419,35 +419,36 @@ class AggregateAverage():
 
     def __init__(self):
 
-        #self.eigen_vecs = {}
-        self.ipr = {}
+        self.t2_axis = None
         self.spectra_data = {}
 
-        self.t2_axis = None
-
-    #def twod_setup(self, instance, pad = 0, name = 'place_holder'):
+        self.point_list = {}
+        self.anisotropy = {}
+        self.ipr = {}
+        
+        
     def twod_setup(self, ax2, ax13, pad = 0, name = 'place_holder'):
 
         ax13 = ax13
         self.t2_axis = ax2
         #self.centre = qr.convert(instance.rwa, 'int', '1/cm')
         self.centre = 12500
-
         init = AggregateInstance()
         init.get_molecules_circular(nM = 2, verbose = False)
         init.assign_spec_dens()
         init.assign_energies()
         init.build_agg(mult = 2)
-
+        
         a_0 = np.array([1.0, 0.0, 0.0], dtype=np.float64)
         lab = lab_settings(lab_settings.FOUR_WAVE_MIXING)
         lab.set_laser_polarizations(a_0,a_0,a_0,a_0)
 
         init.twod_setup(ax2 = self.t2_axis, ax13 = ax13)
-        init.twod_calculate(lab = lab, pad = pad)
-
+        init.twod_calculate(lab = lab, pad = pad, name = name)
+        
         self.spectra_data.update({name: []})
         for i, time in enumerate(self.t2_axis.data):
+            
             spec = init.spec_cont_dict[name].get_spectrum(time)
             self.spectra_data[name].append(spec)
             self.spectra_data[name][i].add_data(-spec.data)
@@ -465,8 +466,13 @@ class AggregateAverage():
 
     def plot_spec(self, disp_range = 1000, name = 'place_holder'):
 
-        window = [self.centre - disp_range, self.centre + disp_range,\
-         self.centre - disp_range, self.centre + disp_range]
+        en1 = 11000
+        en2 = 13500
+        window = [en1, en2, en1, en2]
+
+        #window = [self.centre - disp_range, self.centre + disp_range,\
+        # self.centre - disp_range, self.centre + disp_range]
+
 
         for i, time in enumerate(self.t2_axis.data):
             with qr.energy_units('1/cm'):
@@ -487,6 +493,41 @@ class AggregateAverage():
                 plt.title(name + str(int(time)))
                 plt.savefig(location + name + str(int(time)) + '.png')
 
+    def get_max_list(self, name = 'place_holder'):
+
+        points = np.empty(len(self.spectra_data[name]))
+
+        for i, time in enumerate(self.spectra_data[name]):
+            with qr.energy_units('1/cm'):
+                points[i] = time.get_max_value().real
+
+        if not name in self.point_list.keys():
+            self.point_list.update({name: {}})
+        self.point_list[name].update({'max': points})
+
+    def get_point_list(self, point, name = 'place_holder'):
+
+        points = np.empty(len(self.spectra_data[name]))
+
+        for i, time in enumerate(self.spectra_data[name]):
+            with qr.energy_units('1/cm'):
+                points[i] = time.get_value_at(point, point).real
+
+        if not name in self.point_list.keys():
+            self.point_list.update({name: {}})
+        self.point_list[name].update({'max': points})
+
+    def get_anisotropy(self, name1, name2, _print_=False):
+
+        dictionary1 = self.point_list[name1]
+        dictionary2 = self.point_list[name2]
+
+        for key in dictionary1:
+            anis = (dictionary1[key] - dictionary2[key]) / (dictionary1[key] + (2 * dictionary2[key]))
+            self.anisotropy.update({key: anis})
+
+        if _print_:
+            print(self.anisotropy)
 
     def _make_data_dir(self, location):
 
@@ -495,47 +536,3 @@ class AggregateAverage():
         location = location + '/'
 
         return location
-
-    '''
-    def twod_setup(self, system, name = 'place_holder'):
-
-        t13 = system.t1axis
-        t2 = system.t2axis
-        rwa = system.rwa
-        size = t13.length + system.pad
-
-        t13.atype = 'complete'
-        t13_freq = t13.get_FrequencyAxis()
-        t13_freq.data +=rwa
-        t13_freq.start +=rwa
-
-        with qr.energy_units('1/cm'):
-            self.t13_ax_data = t13_freq.data
-
-        self.t2_ax_data = t2.data
-
-        spectra = []
-        for time in self.t2_ax_data:
-            spectra.append(np.zeros((size, size)))
-
-        self.spectra_data.update({name: spectra})
-
-
-
-    def add_data(self, system, name = 'place_holder'):
-
-        container = system.spec_cont_dict[name]
-        for i, time in enumerate(self.t2_ax_data):
-            spec = container.get_spectrum(time)
-            self.spectra_data[name][i] += spec.data.real
-
-
-    #def normalize():
-
-    def plot_data(self, name = 'place_holder'):
-
-        for time in self.spectra_data[name]:
-            cm = plt.imshow(time)
-            plt.show()
-    
-    '''
