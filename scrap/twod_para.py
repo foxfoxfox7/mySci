@@ -325,7 +325,7 @@ for j, tt2 in enumerate(t2_ax.data):
     perp_val = spectra[1][j].get_max_value()
     anis_max.append((para_val - perp_val)/(para_val + (2 * perp_val)))
 
-print('anis_max = ' + str(anis_max) + '\n')
+print('\nanis_max = ' + str(anis_max) + '\n')
 if _save_:
     with open(save_dir + 'anis.log', 'a') as anis_file:
         anis_file.write('anis_max = ' + str(anis_max) + '\n')
