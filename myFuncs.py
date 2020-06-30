@@ -400,6 +400,34 @@ def load_resp_dict(file_path, las_pol, signal_names, test_pad):
 
     return resp_containers_part, t2_dict
 
+def get_peak_angle(twod_name, x1, x2):
+
+    onetwod = twod_name
+    x_ax_val_1 = x1
+    x_ax_val_2 = x2
+
+    cut_1 = onetwod.get_cut_along_y(x_ax_val_1)
+    index_1 = np.argmax(cut_1.data)
+    y_ax_val_1 = onetwod.yaxis.data[index_1]
+    cut_2 = onetwod.get_cut_along_y(x_ax_val_2)
+    index_2 = np.argmax(cut_2.data)
+    y_ax_val_2 = onetwod.yaxis.data[index_2]
+    opp = y_ax_val_2 - y_ax_val_1
+    adj = x_ax_val_2 - x_ax_val_1
+    angle = math.degrees(math.atan(opp / adj))
+
+    print('index - ', index_1, index_2)
+    print('y value - ', y_ax_val_1, y_ax_val_2)
+    print('opposite - ', opp)
+    #onetwod
+    #x_ax_val_1
+    #x_ax_val_2
+    #cut_1
+    #index_1
+
+    
+    return angle
+
 
 def _get_line(fileName, thisLine, plus = 0):
 
