@@ -415,16 +415,40 @@ def get_peak_angle(twod_name, x1, x2):
     opp = y_ax_val_2 - y_ax_val_1
     adj = x_ax_val_2 - x_ax_val_1
     angle = math.degrees(math.atan(opp / adj))
+    
+    return angle
 
-    print('index - ', index_1, index_2)
-    print('y value - ', y_ax_val_1, y_ax_val_2)
-    print('opposite - ', opp)
-    #onetwod
-    #x_ax_val_1
-    #x_ax_val_2
-    #cut_1
-    #index_1
+def get_cross_points(twod_name, x1, x2):
 
+    x_ax_val_1 = x1
+    x_ax_val_2 = x2
+
+    cut_1 = twod_name.get_cut_along_y(x_ax_val_1)
+    point1 = np.where(twod_name.data == np.max(cut_1.data))
+    cut_2 = twod_name.get_cut_along_y(x_ax_val_2)
+    point2 = np.where(twod_name.data == np.max(cut_2.data))
+    p1 = [point1[0][0], point1[1][0]]
+    p2 = [point2[0][0], point2[1][0]]
+    mid_point = np.where(twod_name.data == np.max(twod_name.data))
+    mp = [mid_point[0][0], mid_point[1][0]]
+    vec1 = [mp[0]-p1[0], mp[1]-p1[1]]
+    vec2 = [p2[0]-mp[0], p2[1]-mp[1]]
+    p3 = [mp[0]-vec2[1], mp[1]+vec2[0]]
+    p4 = [mp[0]+vec1[1], mp[1]-vec1[0]]
+    p1_p = [twod_name.yaxis.data[p1[1]], twod_name.xaxis.data[p1[0]]]
+    p2_p = [twod_name.yaxis.data[p2[1]], twod_name.xaxis.data[p2[0]]]
+    p3_p = [twod_name.yaxis.data[p3[1]], twod_name.xaxis.data[p3[0]]]
+    p4_p = [twod_name.yaxis.data[p4[1]], twod_name.xaxis.data[p4[0]]]
+
+    V = np.array([p1_p,p2_p,p3_p,p4_p])
+
+    return V
+
+def get_angle_from_points(p1, p2):
+
+    opp = p1[1] - p2[1]
+    adj = p1[0] - p2[0]
+    angle = math.degrees(math.atan(opp / adj))
     
     return angle
 
