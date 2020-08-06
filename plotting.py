@@ -67,3 +67,87 @@ def plot_lists(data, labels, title=None, show=True, save=False):
 		plt.savefig(title+'.png')
 	if show:
 		plt.show()
+
+def _extract2dSpectra(fileName, timeStamp, countNum):
+	
+	file1 = fileName + timeStamp + '_fs.txt'
+	file2 = fileName + timeStamp + 'fs.txt'
+
+	try:
+		with open(file1) as file:
+		    array2d = [[float(digit) for digit in line.split()] for line in file]
+		array2d = np.array(array2d)
+		#print(countNum, ' - ', file1)
+	except:
+		with open(file2) as file:
+		    array2d = [[float(digit) for digit in line.split()] for line in file]
+		array2d = np.array(array2d)
+		#print(countNum, ' - ', file2)
+
+	X = []
+	Y = []
+	for i in range(len(array2d[0])):
+		X.append(array2d[0][i])		
+	for j in range(len(array2d)):
+		Y.append(array2d[j][0])
+
+	del X[0]
+	del Y[0]
+	array2d = np.delete(array2d, (0), axis=0)
+	array2d = np.delete(array2d, (0), axis=1)
+
+	return array2d, X, Y
+
+def get_list_of_spec(fileRoot):
+
+	xList = []
+	yList = []
+	dataList = []
+	timeStamps = []
+
+	timeGap = 0
+	time = -1
+	end = False
+	count = 0
+	while not end and time < cutOff:
+		try:
+			time = time + 1
+			timeString = str(time)
+			data, xAxis, yAxis = _extract2dSpectra(fileRoot, timeString, count)
+			xList.append(xAxis)
+			yList.append(yAxis)
+			dataList.append(data)
+			timeStamps.append(time)
+			count = count+1
+			timeInc = 0
+		except:
+			timeInc = timeInc + 1
+			if timeInc > 200:
+				end = True
+				print('No more timestamps')
+
+	return xList, yList, dataList, timeStamps, count
+
+def get_spectrum_from_data(xax, yax, data, timestamp):
+
+	x_ax_n = len(xax)
+	x_ax_start = xax[0]
+	x_ax_fin = xax[-1]
+	x_ax_len = x_ax_fin - x_ax_start
+	x_ax_step = x_ax_len / x_ax_n
+	x_ax = qr.FrequencyAxis(x_ax_start, x_ax_n, x_ax_step)
+
+	y_ax_n = len(yax)
+	y_ax_start = yax[0]
+	y_ax_fin = yax[-1]
+	y_ax_len = y_ax_fin - y_ax_start
+	y_ax_step = y_ax_len / y_ax_n
+	y_ax = qr.FrequencyAxis(y_ax_start, y_ax_n, y_ax_step)
+
+	onetwod = qr.TwoDResponse()
+	onetwod.set_axis_1(x_ax)
+	onetwod.set_axis_3(y_ax)
+	onetwod._add_data(data, resolution="off")
+	onetwod.set_t2(timestamp)
+
+	return onetwod
