@@ -1,175 +1,93 @@
 #!/usr/bin/env python
 
-'''
-Code for generating 2D spectra on a circular aggregate of chromophores
-Requires the use of quantarhei for 2D simulation and Aceto for laser
-conditions and band levels
-'''
-
 import os
 import math
 import time
 import random
-import shutil
 import copy
+import pickle
+import tracemalloc
 import matplotlib.pyplot as plt
 import numpy as np
 import multiprocessing as mp
+import scipy.constants as const
 
 import quantarhei as qr
 from quantarhei.models.spectdens import SpectralDensityDB
 import aceto
 from aceto.lab_settings import lab_settings
 
+import sys
+sys.path.append('/home/kieran/Work/mySci')
 import myFuncs
 
 
-_test_ = True
-_save_ = False
-_show_ = True
+_forster_ = False
+_LH1_ = False
 
-dir_name = 'test4'
-eigen_name = 'eigen'
-para_resp_name = 'paraResp'
-perp_resp_name = 'perpResp'
+save_dir = './test_new/'
 
-num_mol = 3
+num_mol = 2
 dipole_strength = 5
-static_dis = 300
-energy = 12500
+static_dis = 50
+energy = 12216
 reorganisation = 102
-width = 300.0
 cor_time = 100.0
 temperature = 300
 
-# Hwo to define the energies, all same, all different, all random
-energies0 = [energy] * num_mol
-#energies0 = [energy - (100 * num_mol / 2) + i * 100 for i in range(num_mol)]
-#energies0 = [random.gauss(energy, static_dis) for i in range(num_mol)]
-print('energies - ', energies0)
+# Number of 2d containers calculated each loop
+n_per_loop = 1
+# Number of cores used for each loop
+n_cores = 1
+# Number of times this is repeated
+n_loops = 1
+totalSpec = int(n_per_loop*n_loops)
 
-t13_ax_ax_step = 1
-t13_ax_ax_len = 300
-t2_ax_step = 100
-t2_ax_len = 100
-padding = 1000
+t13_ax_step = 1
+t13_ax_len = 300
+t2_ax_step = 60
+t2_ax_len = 60
 
 #######################################################################
-# Setup
+# Setup paramaters
 #######################################################################
 
 # The axis for time gaps 1 and 3
-#t13_ax_ax_count = int(t13_ax_ax_len/t13_ax_ax_step)+1
-#t13_ax = qr.TimeAxis(0.0, t13_ax_ax_count, t13_ax_ax_step)
+t13_ax_count = int(t13_ax_len/t13_ax_step)+1
+t13_ax = qr.TimeAxis(0.0, t13_ax_count, t13_ax_step)
 
 # The axis for time gap 2
-#t2_ax_count = int(t2_ax_len/t2_ax_step)+1
-#t2_ax = qr.TimeAxis(0.0, t2_ax_count, t2_ax_step)
+t2_ax_count = int(t2_ax_len/t2_ax_step)+1
+t2_ax = qr.TimeAxis(0.0, t2_ax_count, t2_ax_step)
 
-t13_ax = qr.TimeAxis(0, 300, 1)
-t2_ax = qr.TimeAxis(0, 2, 50)
+try:
+    os.mkdir(save_dir)
+except OSError:
+    print("Creation of the directory %s failed" % save_dir)
 
-# Making the names of the directories and files to save stuff
-save_dir = 'data/' + dir_name + '/'
-eigen_file = save_dir + eigen_name + '.txt'
-para_resp_dir = save_dir + para_resp_name + '/'
-perp_resp_dir = save_dir + perp_resp_name + '/'
-if _save_:
-    try:
-    	shutil.rmtree(save_dir)
-    	print('Old directory removed')
-    	os.mkdir(save_dir)
-    except:
-    	os.mkdir(save_dir)
-        #print("Creation of the directory %s failed" % save_dir)
-
-t1 = time.time()
-print("Calculating spectra from 0 to ", t2_ax_len, " fs\n")
 
 #######################################################################
-# Creation of the aggregate positions and dipoles
+# Creation of the aggregate ring
 #######################################################################
 
-'''
-A function to create a list of quantarhei molecules
-with cicular coordinates evenly spaceed and dipole
-vectors running round the circumference all in the same direction
-'''
-for_agg = myFuncs.circularAgg(num_mol, dipole_strength)
+if _LH1_:
+    myFuncs.show_dipoles(for_agg)
+else:
+    for_agg = myFuncs.circularAgg(num_mol, dipole_strength)
 
-'''
-Takes the name of a pdb file (without the extension) and converts it
-into a list of molecules with positions and dipoles. The only molecle
-it looks for is Bacteriochlorophyll
-'''
-#for_agg = myFuncs.bacteriochl_agg('3eoj')
-
-'''
-Just a simple dimer for testing. change the positions and dipoles
-'''
-#moleculeOne = qr.Molecule()
-#moleculeTwo = qr.Molecule()
-#moleculeOne.position = [0.0, 0.0, 0.0]
-#moleculeTwo.position = [0.0, 10.0, 0.0]
-#moleculeOne.set_dipole(0,1,[10.0, 0.0, 0.0])
-#moleculeTwo.set_dipole(0,1,[0.0, 10.0, 0.0])
-#for_agg = [moleculeOne, moleculeTwo]
-
-#######################################################################
-# Spectral density
-#######################################################################
-
-# Time axis for the spectral desnity
-# Needs to have small step for the dynamics to converge
-t_ax_sd = qr.TimeAxis(0.0, 10000, 1)
-db = SpectralDensityDB()
 
 # Parameters for spectral density. ODBO, Renger or Silbey
-params = {
-	"ftype": "OverdampedBrownian",
-    #"ftype": "B777",
-    "alternative_form": True,
-    "reorg": reorganisation,
-    "T":temperature,
-    "cortime":cor_time
-    }
-with qr.energy_units('1/cm'):
-    sd_low_freq = qr.SpectralDensity(t_ax_sd, params)
-
-# Adding the high freq modes
-sd_high_freq = db.get_SpectralDensity(t_ax_sd, "Wendling_JPCB_104_2000_5825")
-ax = sd_low_freq.axis
-sd_high_freq.axis = ax
-sd_tot = sd_low_freq + sd_high_freq
-
-cf = sd_tot.get_CorrelationFunction(temperature=temperature, ta=t_ax_sd)
-# Assigning the correlation function to the list of molecules
-for mol in for_agg:
-    mol.set_transition_environment((0,1),cf)
-
-if _test_:
-    reorg = qr.convert(sd_low_freq.get_reorganization_energy(), "int", "1/cm")
-    print("input_reorg - ", reorg)
-
-    with qr.energy_units("1/cm"):
-        sd_tot.plot(show=True, axis=[0, 2000, 0.0, np.max(sd_tot.data)])
-    cf.plot(show=True)
+params = {"ftype": "OverdampedBrownian",
+            #"ftype": "B777",
+            #"alternative_form": True,
+            "reorg": reorganisation,
+            "T":temperature,
+            "cortime":cor_time}
+myFuncs.set_cor_func(for_agg, params)
 
 #######################################################################
-# Dynamics
+# Setup of the calculation
 #######################################################################
-
-# Test the setup by calculating the dynamics at same and diff energies
-if _test_:
-    energies1 = [energy] * num_mol
-    energies2 = [energy - (100 * num_mol / 2)\
-     + i * 100 for i in range(num_mol)]
-    myFuncs.test_dynamics(agg_list=for_agg, energies=energies1)
-    myFuncs.test_dynamics(agg_list=for_agg, energies=energies2)
-
-########################################################################
-# TwoD Spec
-########################################################################
 
 # Arrays for the direction on the laser plane
 a_0 = np.array([1.0, 0.0, 0.0], dtype=np.float64)
@@ -179,138 +97,169 @@ lab_para = lab_settings(lab_settings.FOUR_WAVE_MIXING)
 lab_para.set_laser_polarizations(a_0,a_0,a_0,a_0)
 lab_perp = lab_settings(lab_settings.FOUR_WAVE_MIXING)
 lab_perp.set_laser_polarizations(a_0,a_0,a_90,a_90)
+labs = [lab_para, lab_perp]
+las_pol = ['para', 'perp']
 
-# Setting the energies to the moleucles (energies defined above)
-with qr.energy_units("1/cm"):
-    for i, mol in enumerate(for_agg):
-        mol.set_energy(1, energies0[i])
+def calcTwoD(n_loopsum):#
+    ''' Caculates a 2d spectrum for both perpendicular and parael lasers
+    using aceto bands and accurate lineshapes'''
 
-# Setting up the aggregate for the 2D spectra. Multiplicity must be 2
-agg = qr.Aggregate(molecules=for_agg)
-agg.set_coupling_by_dipole_dipole(epsr=1.21)
-agg.build(mult=2)
+    resp_container = []
 
-# Can save the hamiltoniam diag matrix, diaged hamiltonian and dipoles
-if _save_:
-	myFuncs.save_eigen_data(agg = agg, file = eigen_file)
+    #energies0 = [energy - (100 * num_mol / 2) + i * 100 for i in range(num_mol)]
+    #energies0 = [energy] * num_mol
+    # Giving random energies to the moleucles according to a gauss dist
+    with qr.energy_units("1/cm"):
+        for i, mol in enumerate(for_agg):
+            mol.set_energy(1, random.gauss(energy, static_dis))
+            #mol.set_energy(1, energies0[i])
 
-agg.diagonalize()
-rwa = agg.get_RWA_suggestion()
-with qr.energy_units('1/cm'):
-    print(agg.get_Hamiltonian())
+    agg = qr.Aggregate(molecules=for_agg)
 
-# Initialising the twod response calculator for the paralell laser
-resp_cal_para = qr.TwoDResponseCalculator(
-	t1axis=t13_ax,
-	t2axis=t2_ax,
-	t3axis=t13_ax,
-	system=agg
-	)
-# Copying the response calculator for the perpendicular laser
-resp_cal_perp = copy.deepcopy(resp_cal_para)
+    agg_rates = copy.deepcopy(agg)
+    agg_rates.set_coupling_by_dipole_dipole(epsr=1.21)
+    agg_rates.build(mult=1)
 
-# Bootstrap is the place to add 0-padding to the response signal
-# printEigen=True prints eigenvalues, printResp='string' prints response
-# Response is calculated Converted into spectrum Stored in a container
-resp_cal_para.bootstrap(
-	rwa,
-	verbose=True,
-	pad=padding,
-	printResp = para_resp_dir,
-	lab=lab_para
-	)
-resp_para_cont = resp_cal_para.calculate()
-spec_cont_para = resp_para_cont.get_TwoDSpectrumContainer()
+    if _forster_:
+        with qr.energy_units('1/cm'):
+            print(agg_rates.get_Hamiltonian())
+        KK = agg_rates.get_FoersterRateMatrix()
+    else:
+        with qr.energy_units('1/cm'):
+            print(agg_rates.get_Hamiltonian())
+        KK = agg_rates.get_RedfieldRateMatrix()
+    agg.set_coupling_by_dipole_dipole(epsr=1.21)
+    agg.build(mult=2)
+    rwa = agg.get_RWA_suggestion()
 
-resp_cal_perp.bootstrap(
-	rwa,
-	verbose=True,
-	pad=padding,
-	printResp = perp_resp_dir,
-	lab=lab_perp
-	)
-resp_perp_cont = resp_cal_perp.calculate()
-spec_cont_perp = resp_perp_cont.get_TwoDSpectrumContainer()
+    HH = agg.get_Hamiltonian()
+    pig_ens = np.diagonal(HH.data[1:num_mol+1,1:num_mol+1])\
+     / (2.0*const.pi*const.c*1.0e-13)
+    en_order = np.argsort(pig_ens)
+    SS = HH.diagonalize()
+    eig_vecs = np.transpose(SS[1:num_mol+1,1:num_mol+1])
+    state_ens = np.diagonal(HH.data[1:num_mol+1,1:num_mol+1])\
+     / (2.0*const.pi*const.c*1.0e-13)
+    agg.diagonalize()
+    dips = agg.D2[0][1:num_mol+1]
+    dip_order = np.flip(np.argsort(dips))
+    
+    # Initialising the twod response calculator for the paralell laser
+    resp_calc_temp = qr.TwoDResponseCalculator(
+        t1axis = t13_ax,
+        t2axis = t2_ax,
+        t3axis = t13_ax,
+        system = agg,
+        rate_matrix = KK
+        )
 
-t2 = time.time()
-print('calculation completed in ', (t2-t1), 's' )
+    # keep_resp saves the reponse int he object. write_resp writes to numpy
+    # Response is calculated Converted into spectrum Stored in a container
+    for i, lab in enumerate(labs):
+        resp_calc = copy.deepcopy(resp_calc_temp)
+        resp_calc.bootstrap(rwa, lab=lab, verbose = True,
+            keep_resp = True)#write_resp = save_dir + las_pol[i] + '_resp', 
+        resp_cont = resp_calc.calculate()
+        resp_container.append(resp_calc.responses)
 
-########################################################################
-# Printing and Saving
-########################################################################
+    state_data = {
+        'pig_ens': pig_ens,
+        'en_order': en_order,
+        'eig_vecs': eig_vecs,
+        'state_ens': state_ens,
+        'dips': dips,
+        'dip_order': dip_order,
+        'rwa': rwa
+        }
 
-# initialising empy numpy arrays for points on the spectra > anisotropy
-para = np.empty(len(t2_ax.data))
-perp = np.empty(len(t2_ax.data))
-en1 = 11000
-en2 = 13500
+    return resp_container, state_data
 
-# Runs through timessteps on the t2 axis. Gets spectrum from container
-for i, tt2 in enumerate(t2_ax.data):
-	twodPara = spec_cont_para.get_spectrum(t2_ax.data[i])
-	para[i] = twodPara.get_max_value()
-	with qr.energy_units('1/cm'):
-		twodPara.plot()
-		plt.xlim(en1, en2)
-		plt.ylim(en1, en2)
-		plt.title('para' + str(int(tt2)))
-		if _save_:
-			plt.savefig(save_dir + 'para' + str(int(tt2)) + '.png')
-		if _show_:
-			plt.show()
+#######################################################################
+# Creation of the spectra
+#######################################################################
 
-# Does the same as above but for the perpendicular laser setup
-for i, tt2 in enumerate(t2_ax.data):
-	twodPerp = spec_cont_perp.get_spectrum(t2_ax.data[i])
-	perp[i] = twodPerp.get_max_value()
-	with qr.energy_units('1/cm'):
-		twodPerp.plot()
-		plt.xlim(en1, en2)
-		plt.ylim(en1, en2)
-		plt.title('perp' + str(int(tt2)))
-		if _save_:
-			plt.savefig(save_dir + 'perp' + str(int(tt2)) + '.png')
-		if _show_:
-			plt.show()
+Nr13 = t13_ax.length
 
-########################################################################
-# Analysis
-########################################################################
+resp_names = ['rGSB', 'nGSB', 'rSE', 'nSE','rESA', 'nESA', 'rSEWT', 
+ 'nSEWT', 'rESAWT', 'nESAWT']
+resp_dict = {}
+for i, resp in enumerate(resp_names):
+    total_resp_list = []
+    for j, lab in enumerate(labs):
+        lab_list = []
+        for k, tt2 in enumerate(t2_ax.data):
+            lab_list.append(np.zeros((Nr13, Nr13), dtype=np.complex128, order='F'))
+        total_resp_list.append(lab_list)
+    resp_dict.update({resp: total_resp_list})
 
-# Calculates anisotropy
-anis = (para - perp) / (para + (2 * perp))
-print('anisotropy - ', anis)
+state_dict = {
+    'pig_ens': [],
+    'en_order': [],
+    'eig_vecs': [],
+    'state_ens': [],
+    'dips': [],
+    'dip_order': []
+    }
 
-# Loads in the data about the states, energies, vectors, dipols, orders
-try:
-	pig_en, state_en, eig_vecs, state_dips, dip_order, en_order =\
-	 myFuncs.extracting_eigen_data(eigen_file)
-	print('dipoles')
-	print(state_dips[0])
-	print('order')
-	print(dip_order)
-	print('state energies')
-	print(state_en[0])
-	print('pigment energies')
-	print(pig_en[0])
-	print('order')
-	print(en_order)
-except Exception:
-	print('no eigen data')
+for l in range(n_loops):
+    tracemalloc.start()
+    t3 = time.time()
+    print('\nCalculating loop ' + str(l+1) + '...\n')
 
-# loads in the response data if saved
-try:
-	resp_data_para = np.load(para_resp_dir + 'respT0Pad.npz')
-	print('para response - ', resp_data_para.files)
-except Exception:
-	print('no para resp data at ' + para_resp_dir + 'respT0Pad.npz')
+    # Function calculates the spectrum containers
+    with mp.Pool(processes=n_cores) as pool:
+        tot_cont = pool.map(calcTwoD, [k for k in range(n_per_loop)])
 
-# loads in the response data if saved
-try:
-	resp_data_perp = np.load(perp_resp_dir + 'respT0Pad.npz')
-	print('perp response - ', resp_data_perp.files)
-except Exception:
-	print('no perp resp data at ' + perp_resp_dir + 'respT0Pad.npz')
+    for i, resp in enumerate(resp_names):
+        for j, lab in enumerate(labs):
+            for k, tt2 in enumerate(t2_ax.data):
+                for n in range(n_per_loop):
+                    resp_dict[resp][j][k] += tot_cont[n][0][j][k][resp]
 
-plt.plot(resp_data_para['time'], resp_data_para['rTot'], 'r--')
-plt.show()
+    for key in state_dict:
+        for i in range(n_per_loop):
+            state_dict[key].append(tot_cont[i][1][key])
+
+    global resp_time
+    resp_time = tot_cont[0][0][0][0]['time']
+    global rwa
+    rwa = tot_cont[0][1]['rwa']
+
+    # necessary to clear the container for the next loop
+    tot_cont.clear()
+
+    t4 = time.time()
+    current, peak = tracemalloc.get_traced_memory()
+    print("\n... calculated in " + str(t4-t3) + " sec")
+    print(str(n_loops - l - 1) + ' loops left')
+    print(f"Current memory usage is {current / 10**6}MB")
+    print(f"Peak was {peak / 10**6}MB\n")
+    tracemalloc.stop()
+
+for i, resp in enumerate(resp_names):
+    for j, laser in enumerate(las_pol):
+        for k, tt2 in enumerate(t2_ax.data):
+            resp_dict[resp][j][k] = resp_dict[resp][j][k] / (n_loops * n_per_loop) 
+resp_dict.update({'rwa': rwa, 't2axis': t2_ax.data, 'time': resp_time})
+
+params_dict = {
+    'LH1': _LH1_,
+    'num_mol': num_mol,
+    'dipole_strength': dipole_strength,
+    'static_dis': static_dis,
+    'energy': energy,
+    'totalSpec': totalSpec,
+    't13_ax_step': t13_ax_step,
+    't13_ax_len': t13_ax_len,
+    't2_ax_step': t2_ax_step,
+    't2_ax_len': t2_ax_len,
+    'ftype': params['ftype']
+    }
+
+
+with open(save_dir + 'resp.pkl', 'wb') as f:
+    pickle.dump(resp_dict, f, pickle.HIGHEST_PROTOCOL)
+with open(save_dir + 'states.pkl', 'wb') as f:
+    pickle.dump(state_dict, f, pickle.HIGHEST_PROTOCOL)
+with open(save_dir + 'params.pkl', 'wb') as f:
+    pickle.dump(params_dict, f, pickle.HIGHEST_PROTOCOL)
