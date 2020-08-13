@@ -452,6 +452,77 @@ def get_angle_from_points(p1, p2):
     
     return angle
 
+def get_peak_cross_sections(V, twod_p):
+
+
+    cut_long = twod_p.get_cut_along_line(V[0], V[1])
+    cut_short1 = twod_p.get_cut_along_line(V[3], V[2])
+    cut_short2 = twod_p.get_cut_along_line(V[2], V[3])
+
+    data1 = np.array(cut_short1.data)
+    data2 = np.flip(np.array(cut_short2.data))
+    data3 = np.hstack((data1, data2))
+    shift = cut_short1.axis.data[1] + cut_short1.axis.data[-1]
+    cut_short2.axis.data = cut_short2.axis.data + shift
+    new_axis = np.hstack((cut_short1.axis.data, cut_short2.axis.data))
+    qr_axis = qr.ValueAxis(0.0, len(new_axis), new_axis[1])
+    short_final = qr.DFunction(qr_axis, data3)
+
+    data_max = (np.amax(twod_p.data))/2
+
+    long_p_1 = next(x for x, val in enumerate(cut_long.data) if val > (data_max)) 
+    for_lp2 = np.flip(cut_long.data)
+    long_p_2 = next(x for x, val in enumerate(for_lp2) if val > (data_max)) 
+    long_width = cut_long.axis.data[-long_p_2-1] - cut_long.axis.data[long_p_1]
+
+
+    short_p_1 = next(x for x, val in enumerate(short_final.data) if val > (data_max)) 
+    for_sp2 = np.flip(short_final.data)
+    short_p_2 = next(x for x, val in enumerate(for_sp2) if val > (data_max)) 
+    short_width = short_final.axis.data[-short_p_2-1] - short_final.axis.data[short_p_1]
+
+    fig, ax = plt.subplots(2)
+    ax[0].plot(cut_long.axis.data, cut_long.data)
+    ax[0].set_title('long')
+
+    ax[1].plot(short_final.axis.data, short_final.data)
+    ax[1].set_title('short')
+    plt.show()
+
+    return short_width, long_width
+
+def complexify(func):
+    
+    Nvec = len(func)
+
+    vecf = np.fft.fft(func)
+    vecf[0] = vecf[0]/2.0
+    vecf[int(Nvec/2)] = vecf[int(Nvec/2)]/2.0
+    vecf[int(Nvec/2)+1:] = 0.0
+    vecf = 2.0*vecf
+    veci = np.fft.ifft(vecf)
+
+    Norm = np.dot(np.conj(veci), veci)
+    vecb = copy.deepcopy(veci)
+    veci = veci/np.sqrt(Norm)
+
+    return veci
+
+def calc_ipr(vec):
+
+    nM = len(vec)
+
+    abs_vec = np.absolute(vec)
+    by_four_vec = abs_vec ** 4
+    sum_vec = np.sum(by_four_vec)
+    ipr = 1 / sum_vec
+
+    abs_vec_r = vec.real
+    by_four_vec_r = abs_vec_r ** 4
+    sum_vec_r = np.sum(by_four_vec_r)
+    ipr_r = 1 / sum_vec_r
+
+    return ipr, ipr_r
 
 def _get_line(fileName, thisLine, plus = 0):
 
