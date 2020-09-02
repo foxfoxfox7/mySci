@@ -2,6 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 
+import quantarhei as qr
+
 
 def get_exp_fit(y, timestep, title='dummy', show=False):
 
@@ -42,7 +44,7 @@ def plot_depo(data, labels, timestep, title=None, show=True, save=False):
 	if show:
 		plt.show()
 
-def plot_exponentials(data, x, timestep, title=None, show=True, save=False):
+def plot_exponentials2(data, x, timestep, title=None, show=True, save=False):
 
 	exp_param = []
 	for curve in data:
@@ -54,6 +56,30 @@ def plot_exponentials(data, x, timestep, title=None, show=True, save=False):
 		plt.savefig(title+'.png')
 	if show:
 		plt.show()
+
+def plot_exponentials(data, x, timestep, xtitle = None):
+
+    exp_param = []
+    exp_param2 = []
+    for curve in data:
+        fit_params = get_exp_fit(curve, timestep)
+        exp_param.append(1/fit_params[1])
+        exp_param2.append(fit_params[0]+fit_params[2])
+
+    fig, ax = plt.subplots(nrows=1, ncols=2, figsize=(12,4), dpi= 80)
+    fig.suptitle("The fitting parameters of the depolarization curves", fontsize=14)
+    
+    ax[0].plot(x, exp_param)
+    #ax[0].set_title('how quickly the deplarization decays')
+    ax[0].set_ylabel('lifetime (fs)')
+    ax[0].set_xlabel(xtitle)
+    
+    ax[1].plot(x, exp_param2)
+    #ax[1].set_title('the start position of the anisotropy')
+    ax[1].set_ylabel('start position')
+    ax[1].set_xlabel(xtitle)
+    
+    plt.show()
 
 def plot_lists(data, labels, title=None, show=True, save=False):
 
@@ -98,7 +124,7 @@ def _extract2dSpectra(fileName, timeStamp, countNum):
 
 	return array2d, X, Y
 
-def get_list_of_spec(fileRoot):
+def get_list_of_spec(fileRoot, cutOff = 200):
 
 	xList = []
 	yList = []
@@ -151,3 +177,28 @@ def get_spectrum_from_data(xax, yax, data, timestamp):
 	onetwod.set_t2(timestamp)
 
 	return onetwod
+
+def get_spectrum_from_data2(xax, yax, data, timestamp):
+
+    x_ax_n = len(xax)
+    x_ax_start = xax[0]
+    x_ax_fin = xax[-1]
+    x_ax_len = x_ax_fin - x_ax_start
+    x_ax_step = x_ax_len / x_ax_n
+    x_ax = qr.FrequencyAxis(x_ax_start, x_ax_n, x_ax_step)
+
+    y_ax_n = len(yax)
+    y_ax_start = yax[0]
+    y_ax_fin = yax[-1]
+    y_ax_len = y_ax_fin - y_ax_start
+    y_ax_step = y_ax_len / y_ax_n
+    y_ax = qr.FrequencyAxis(y_ax_start, y_ax_n, y_ax_step)
+
+    onetwod = qr.TwoDSpectrum()
+    onetwod.set_axis_1(x_ax)
+    onetwod.set_axis_3(y_ax)
+    onetwod.set_data(data)
+    onetwod.set_t2(timestamp)
+
+    return onetwod
+
